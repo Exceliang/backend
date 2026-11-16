@@ -1,43 +1,8 @@
-from typing import Literal
+from database import init_db, get_conn
+from schemas import TaskOut,TaskCreate, Literal
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
-import sqlite3
 
 app = FastAPI()
-def get_conn():
-    conn=sqlite3.connect("tasks.db")
-    conn.row_factory=sqlite3.Row
-    return conn
-
-def init_db():
-    conn=get_conn()
-    try:
-        cur=conn.cursor()
-        cur.execute(
-            """create table if not exists tasks(
-                    id integer primary key autoincrement,
-                    title text not null,
-                    category text not null,
-                    estimated_minutes int not null,
-                    is_done int not null default 0
-                    )"""
-            )
-        conn.commit()
-    finally:
-        conn.close()
-
-init_db()
-
-class TaskCreate(BaseModel):
-    title: str = Field(..., min_length=1, max_length=50, description="任务标题")
-    category: Literal["ai", "invest", "health"] = Field(..., description="所属分类")
-    estimated_minutes: int = Field(..., gt=0, description="预估耗时（分钟）")
-
-
-class TaskOut(TaskCreate):
-    id: int
-    is_done: bool = Field(default=False)
-
 
 @app.post("/tasks", status_code=201, response_model=TaskOut)
 def create_task(task: TaskCreate):
@@ -100,14 +65,14 @@ def finish_task(task_id: int):
     try:
         cur=conn.cursor()
         cur.execute(
-            "update tasks set is_done=1 where id=?"
+            "update tasks set is_done=1 where id=?",
             (task_id,),
         )
         conn.commit()
         if cur.rowcount==0:
             raise HTTPException(status_code=404, detail="Task not found")
         cur.execute(
-            "select id, title, category, estimated_minutes, is_done from tasks where id=?"
+            "select id, title, category, estimated_minutes, is_done from tasks where id=?",
             (task_id,),
         )
         row=cur.fetchone()
