@@ -62,26 +62,80 @@ def create_task(task: TaskCreate):
     )
 
 
-# @app.get("/tasks", response_model=list[TaskOut])
-# def get_tasks(category: Literal["ai", "invest", "health"] | None = None):
-#     if not category:
-#         return task_db
-#     return [task for task in task_db if task.category == category]
+@app.get("/tasks", response_model=list[TaskOut])
+def get_tasks(category: Literal["ai", "invest", "health"] | None = None):
+    conn=get_conn()
+    try:
+        cur=conn.cursor()
+        if not category:
+            cur.execute(
+                "select id, title, category, estimated_minutes, is_done from tasks"
+            )
+        else:
+            cur.execute(
+                "select id, title, category, estimated_minutes, is_done from tasks where category=(?)",
+                (category,),
+            )
+        conn.commit()
+        rows=cur.fetchall()
+    finally:
+        conn.close()
+
+    return [
+        TaskOut(
+            id=row["id"],
+            title=row["title"],
+            category=row["category"],
+            estimated_minutes=row["estimated_minutes"],
+            is_done=bool(row["is_done"]),
+        )
+        for row in rows
+    ]
+    
 
 
-# @app.patch("/tasks/{task_id}/done", response_model=TaskOut)
-# def finish_task(task_id: int):
-#     for task in task_db:
-#         if task.id == task_id:
-#             task.is_done = True
-#             return task
-#     raise HTTPException(status_code=404, detail="Task not found")
+@app.patch("/tasks/{task_id}/done", response_model=TaskOut)
+def finish_task(task_id: int):
+    conn=get_conn()
+    try:
+        cur=conn.cursor()
+        cur.execute(
+            "update tasks set is_done=1 where id=?"
+            (task_id,),
+        )
+        conn.commit()
+        if cur.rowcount==0:
+            raise HTTPException(status_code=404, detail="Task not found")
+        cur.execute(
+            "select id, title, category, estimated_minutes, is_done from tasks where id=?"
+            (task_id,),
+        )
+        row=cur.fetchone()
+    finally:
+        conn.close()
+
+    return TaskOut(
+        id=row["id"],
+        title=row["title"],
+        category=row["category"],
+        estimated_minutes=row["estimated_minutes"],
+        is_done=bool(row["is_done"]),
+    )
 
 
-# @app.delete("/tasks/{task_id}")
-# def delete_task(task_id: int):
-#     for task in task_db:
-#         if task.id == task_id:
-#             task_db.remove(task)
-#             return {"message": "Task deleted"}
-#     raise HTTPException(status_code=404, detail="Task not found")
+@app.delete("/tasks/{task_id}")
+def delete_task(task_id: int):
+    conn=get_conn()
+    try:
+        cur=conn.cursor()
+        cur.execute(
+            "delete from tasks where id=?",
+            (task_id,),
+        )
+        conn.commit()
+        if cur.rowcount==0:
+            raise HTTPException(status_code=404,detail="Task not found")
+    finally:
+        conn.close()
+
+    return {"message":"Task deleted"}
