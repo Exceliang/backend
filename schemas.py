@@ -10,3 +10,6 @@ class TaskCreate(BaseModel):
 class TaskOut(TaskCreate):
     id: int
     is_done: bool = Field(default=False)
+
+class TaskParamRequest(BaseModel):
+    text:str=Field(...,min_length=1,description="接收文本")
